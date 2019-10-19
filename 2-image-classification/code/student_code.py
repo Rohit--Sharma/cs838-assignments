@@ -102,8 +102,6 @@ class CustomConv2DFunction(Function):
 
     print('grad_output shape:', grad_output.shape)
 
-    c_o, M, N = grad_output.shape
-    c_o, c_i, K, K = weight.shape
     # recover the conv params
     kernel_size = weight.size(2)
     stride = ctx.stride
@@ -111,37 +109,26 @@ class CustomConv2DFunction(Function):
     input_height = ctx.input_height
     input_width = ctx.input_width
 
-    grad_input = torch.zeros([c_i, input_height, input_width])
-    grad_weight = torch.zeros([c_o, c_i, K, K])
-    grad_bias = None
+    grad_input = grad_weight = grad_bias = None
 
     #################################################################################
     # Fill in the code here
     #################################################################################
     # compute the gradients w.r.t. input and params
 
-    # TODO: Padding?
+    # TODO: This only works for one input image (I guess...), not batch!
     # gradient w.r.t params
-    for i in range(c_o):
-      for j in range(c_i):
-        for k in range(K):
-          for l in range(K):
-            for m in range(M):
-              for n in range(N):
-                grad_weight[i, j, k, l] += grad_output[i, m, n] * input_feats[j, (m - 1) * stride + k, (n - 1) * stride + l]
+
+    # Unfold grad_output
+    dY = unfold(grad_output, kernel_size=kernel_size)
+    X_T = unfold(input_feats, kernel_size=kernel_size, padding=padding, stride=stride).transpose(1, 2)
+    dW = torch.mul(dY, X_T)
+    grad_weight = fold(dW, kernel_size=kernel_size)
 
     # gradient w.r.t input
-    for i in range(c_i):
-      for j in range(input_height):
-        for k in range(input_width):
-          for l in range(M):
-            for m in range(K):
-              for n in range(N):
-                for p in range(K):
-                  for q in range(c_o):
-                    if (l - 1) * stride + m == j and (n - 1) * stride + p == k:
-                      grad_input[i, j, k] += weight[q, i, m, p] * grad_output[q, l, n]
-
+    W_T = unfold(weight, kernel_size=kernel_size).transpose(0, 1)
+    dX = torch.mul(W_T, dY)
+    grad_input = fold(dX, kernel_size=kernel_size, padding=padding, stride=stride)
 
     if bias is not None and ctx.needs_input_grad[2]:
       # compute the gradients w.r.t. bias (if any)
