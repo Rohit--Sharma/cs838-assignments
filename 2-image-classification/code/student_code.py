@@ -82,9 +82,13 @@ class CustomConv2DFunction(Function):
 
     """
     # unpack tensors and initialize the grads
-    # your_vars, weight, bias = ctx.saved_tensors
-    grad_input = grad_weight = grad_bias = None
+    your_vars, weight, bias = ctx.saved_tensors
+    input_feats = your_vars
 
+    print('grad_output shape:', grad_output.shape)
+
+    c_o, M, N = grad_output.shape
+    c_o, c_i, K, K = weight.shape
     # recover the conv params
     kernel_size = weight.size(2)
     stride = ctx.stride
@@ -92,10 +96,37 @@ class CustomConv2DFunction(Function):
     input_height = ctx.input_height
     input_width = ctx.input_width
 
+    grad_input = torch.zeros([c_i, input_height, input_width])
+    grad_weight = torch.zeros([c_o, c_i, K, K])
+    grad_bias = None
+
     #################################################################################
     # Fill in the code here
     #################################################################################
     # compute the gradients w.r.t. input and params
+
+    # TODO: Padding?
+    # gradient w.r.t params
+    for i in range(c_o):
+      for j in range(c_i):
+        for k in range(K):
+          for l in range(K):
+            for m in range(M):
+              for n in range(N):
+                grad_weight[i, j, k, l] += grad_output[i, m, n] * input_feats[j, (m - 1) * stride + k, (n - 1) * stride + l]
+
+    # gradient w.r.t input
+    for i in range(c_i):
+      for j in range(input_height):
+        for k in range(input_width):
+          for l in range(M):
+            for m in range(K):
+              for n in range(N):
+                for p in range(K):
+                  for q in range(c_o):
+                    if (l - 1) * stride + m == j and (n - 1) * stride + p == k:
+                      grad_input[i, j, k] += weight[q, i, m, p] * grad_output[q, l, n]
+
 
     if bias is not None and ctx.needs_input_grad[2]:
       # compute the gradients w.r.t. bias (if any)
