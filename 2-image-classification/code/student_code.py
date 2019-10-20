@@ -89,11 +89,8 @@ class CustomConv2DFunction(Function):
       grad_bias: gradients of the bias term
 
     """
-    print('Grad_output:', grad_output)
     # unpack tensors and initialize the grads
     X_unfolded, weight, bias = ctx.saved_tensors
-
-    # print('grad_output shape:', grad_output.shape)
 
     # recover the conv params
     kernel_size = weight.size(2)
@@ -107,37 +104,25 @@ class CustomConv2DFunction(Function):
     #################################################################################
     # Fill in the code here
     #################################################################################
-    # compute the gradients w.r.t. input and params
 
     # gradient w.r.t params
+    dY = unfold(grad_output, kernel_size=1)     # Unfold grad_output
+    X_T = X_unfolded.transpose(1, 2)            # Transpose x_unfolded
+    dW = torch.matmul(dY, X_T)                  # Multiply dY and dW to compute unfolded weight gradients
 
-    # Unfold grad_output
-    dY = unfold(grad_output, kernel_size=1)
-    # X_T = unfold(input_feats, kernel_size=kernel_size, padding=padding, stride=stride).transpose(1, 2)
-    X_T = X_unfolded.transpose(1, 2)
-    dW = torch.matmul(dY, X_T)
-    # print(dY.shape, X_T.shape, dW.shape)
-    dW = dW.sum(dim=0)
-    # print('dW shape:', dW.shape)
-    # grad_weight = fold(dW, output_size=(kernel_size, kernel_size), kernel_size=kernel_size, padding=padding, stride=stride)
-    grad_weight = dW.view(weight.size())
-    # print('Grad_weight shape:', grad_weight.shape)
+    dW = dW.sum(dim=0)                          # Add gradient for all the input images in the batch
+    grad_weight = dW.view(weight.size())        # Reshape gradient w.r.t weights to correct shape
 
     # gradient w.r.t input
-    # W_T = unfold(weight, kernel_size=kernel_size).view()
-    W_T = weight.view(weight.shape[0], -1).t()
-    # print(W_T.shape)
-    dX = torch.matmul(W_T, dY)
-    # print(dX.shape)
+    W_T = weight.view(weight.shape[0], -1).t()  # Transpose weights
+    dX = torch.matmul(W_T, dY)                  # Multiply W_T and dY to compute unfolded input gradients
+    # Fold input gradients to correct shape
     grad_input = fold(dX, output_size=(input_height, input_width), kernel_size=kernel_size, padding=padding, stride=stride)
 
     if bias is not None and ctx.needs_input_grad[2]:
       # compute the gradients w.r.t. bias (if any)
       grad_bias = grad_output.sum((0, 2, 3))
 
-    # print(grad_input.shape, grad_output.shape, grad_bias.shape)
-    # print(grad_weight)
-    # print(grad_input)
     return grad_input, grad_weight, grad_bias, None, None
 
 custom_conv2d = CustomConv2DFunction.apply
