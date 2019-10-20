@@ -61,17 +61,17 @@ class CustomConv2DFunction(Function):
     output_H = int(np.floor((ctx.input_height + (2 * padding) - kernel_size)/stride) + 1)
     output_W = int(np.floor((ctx.input_width + (2 * padding) - kernel_size)/stride) + 1)
 
-    X = unfold(input_feats, kernel_size=kernel_size, padding=padding, stride=stride).transpose(1, 2)
+    X = unfold(input_feats, kernel_size=kernel_size, padding=padding, stride=stride)
     W = weight.view(weight.size(0), - 1).t()
 
-    Y = torch.matmul(X, W).transpose(1, 2)
+    Y = torch.matmul(X.transpose(1, 2), W).transpose(1, 2)
     for out_ch in range(bias.shape[0]):
       Y[:,out_ch,:] += bias[out_ch]
 
     output = fold(Y, output_size=(output_H, output_W), kernel_size=1)
 
     # save for backward (you need to save the unfolded tensor into ctx)
-    ctx.save_for_backward(input_feats, weight, bias)
+    ctx.save_for_backward(X, weight, bias)
 
     return output
 
@@ -89,11 +89,11 @@ class CustomConv2DFunction(Function):
       grad_bias: gradients of the bias term
 
     """
+    print('Grad_output:', grad_output)
     # unpack tensors and initialize the grads
-    your_vars, weight, bias = ctx.saved_tensors
-    input_feats = your_vars
+    X_unfolded, weight, bias = ctx.saved_tensors
 
-    print('grad_output shape:', grad_output.shape)
+    # print('grad_output shape:', grad_output.shape)
 
     # recover the conv params
     kernel_size = weight.size(2)
@@ -109,24 +109,35 @@ class CustomConv2DFunction(Function):
     #################################################################################
     # compute the gradients w.r.t. input and params
 
-    # TODO: This only works for one input image (I guess...), not batch!
     # gradient w.r.t params
 
     # Unfold grad_output
-    dY = unfold(grad_output, kernel_size=kernel_size)
-    X_T = unfold(input_feats, kernel_size=kernel_size, padding=padding, stride=stride).transpose(1, 2)
+    dY = unfold(grad_output, kernel_size=1)
+    # X_T = unfold(input_feats, kernel_size=kernel_size, padding=padding, stride=stride).transpose(1, 2)
+    X_T = X_unfolded.transpose(1, 2)
     dW = torch.matmul(dY, X_T)
-    grad_weight = fold(dW, kernel_size=kernel_size)
+    # print(dY.shape, X_T.shape, dW.shape)
+    dW = dW.sum(dim=0)
+    # print('dW shape:', dW.shape)
+    # grad_weight = fold(dW, output_size=(kernel_size, kernel_size), kernel_size=kernel_size, padding=padding, stride=stride)
+    grad_weight = dW.view(weight.size())
+    # print('Grad_weight shape:', grad_weight.shape)
 
     # gradient w.r.t input
-    W_T = unfold(weight, kernel_size=kernel_size).transpose(0, 1)
+    # W_T = unfold(weight, kernel_size=kernel_size).view()
+    W_T = weight.view(weight.shape[0], -1).t()
+    # print(W_T.shape)
     dX = torch.matmul(W_T, dY)
+    # print(dX.shape)
     grad_input = fold(dX, output_size=(input_height, input_width), kernel_size=kernel_size, padding=padding, stride=stride)
 
     if bias is not None and ctx.needs_input_grad[2]:
       # compute the gradients w.r.t. bias (if any)
       grad_bias = grad_output.sum((0, 2, 3))
 
+    # print(grad_input.shape, grad_output.shape, grad_bias.shape)
+    # print(grad_weight)
+    # print(grad_input)
     return grad_input, grad_weight, grad_bias, None, None
 
 custom_conv2d = CustomConv2DFunction.apply
