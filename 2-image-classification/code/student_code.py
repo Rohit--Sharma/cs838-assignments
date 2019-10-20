@@ -90,8 +90,10 @@ class CustomConv2DFunction(Function):
 
     """
     # unpack tensors and initialize the grads
-    # your_vars, weight, bias = ctx.saved_tensors
-    grad_input = grad_weight = grad_bias = None
+    your_vars, weight, bias = ctx.saved_tensors
+    input_feats = your_vars
+
+    print('grad_output shape:', grad_output.shape)
 
     # recover the conv params
     kernel_size = weight.size(2)
@@ -100,10 +102,26 @@ class CustomConv2DFunction(Function):
     input_height = ctx.input_height
     input_width = ctx.input_width
 
+    grad_input = grad_weight = grad_bias = None
+
     #################################################################################
     # Fill in the code here
     #################################################################################
     # compute the gradients w.r.t. input and params
+
+    # TODO: This only works for one input image (I guess...), not batch!
+    # gradient w.r.t params
+
+    # Unfold grad_output
+    dY = unfold(grad_output, kernel_size=kernel_size)
+    X_T = unfold(input_feats, kernel_size=kernel_size, padding=padding, stride=stride).transpose(1, 2)
+    dW = torch.mul(dY, X_T)
+    grad_weight = fold(dW, kernel_size=kernel_size)
+
+    # gradient w.r.t input
+    W_T = unfold(weight, kernel_size=kernel_size).transpose(0, 1)
+    dX = torch.mul(W_T, dY)
+    grad_input = fold(dX, kernel_size=kernel_size, padding=padding, stride=stride)
 
     if bias is not None and ctx.needs_input_grad[2]:
       # compute the gradients w.r.t. bias (if any)
