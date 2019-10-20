@@ -12,7 +12,7 @@ from torchvision.utils import make_grid
 import math
 from utils import resize_image
 import custom_transforms as transforms
-from torch.nn import ConstantPad2d
+#from torch.nn import ConstantPad2d
 
 #################################################################################
 # You will need to fill in the missing code in this file
@@ -57,28 +57,21 @@ class CustomConv2DFunction(Function):
     # make sure this is a valid convolution
     assert kernel_size <= (input_feats.size(2) + 2 * padding)
     assert kernel_size <= (input_feats.size(3) + 2 * padding)
-
-    num_examples = input_feats.shape[0]
-    [C_o, _, _, _] = weight.shape
     
     output_H = int(np.floor((ctx.input_height + (2 * padding) - kernel_size)/stride) + 1)
     output_W = int(np.floor((ctx.input_width + (2 * padding) - kernel_size)/stride) + 1)
-    output = torch.zeros(num_examples, C_o, output_H, output_W)
-    padding_func = ConstantPad2d(padding, 0)
-    input_feats_padded = padding_func(input_feats)
-    for example in range(num_examples):
-      for filter in range(C_o):
-        in_y = out_y = 0
-        while in_y+kernel_size <= ctx.input_height:
-          in_x = out_x = 0
-          while in_x+kernel_size <= ctx.input_width:
-            output[example, filter, out_y, out_x] = torch.sum(torch.mul(weight[filter,:,:,:], input_feats_padded[example, :, in_y:in_y+kernel_size, in_x:in_x+kernel_size])) + bias[filter]
-            in_x += ctx.stride
-            out_x += 1
-          in_y += ctx.stride
-          out_y += 1
+
+    X = unfold(input_feats, kernel_size=kernel_size, padding=padding, stride=stride).transpose(1, 2)
+    W = weight.view(weight.size(0), - 1).t()
+
+    Y = torch.matmul(X, W).transpose(1, 2)
+    for out_ch in range(bias.shape[0]):
+      Y[:,out_ch,:] += bias[out_ch]
+
+    output = fold(Y, output_size=(output_H, output_W), kernel_size=1)
+
     # save for backward (you need to save the unfolded tensor into ctx)
-    # ctx.save_for_backward(your_vars, weight, bias)
+    ctx.save_for_backward(input_feats, weight, bias)
 
     return output
 
