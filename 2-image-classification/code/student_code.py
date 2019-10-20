@@ -58,17 +58,17 @@ class CustomConv2DFunction(Function):
     assert kernel_size <= (input_feats.size(2) + 2 * padding)
     assert kernel_size <= (input_feats.size(3) + 2 * padding)
     
-    output_H = int(np.floor((ctx.input_height + (2 * padding) - kernel_size)/stride) + 1)
-    output_W = int(np.floor((ctx.input_width + (2 * padding) - kernel_size)/stride) + 1)
+    output_H = int(np.floor((ctx.input_height + (2 * padding) - kernel_size)/stride) + 1) # (H+2P-K)/S + 1    
+    output_W = int(np.floor((ctx.input_width + (2 * padding) - kernel_size)/stride) + 1)  # (W+2P-K)/S + 1
 
-    X = unfold(input_feats, kernel_size=kernel_size, padding=padding, stride=stride)
-    W = weight.view(weight.size(0), - 1).t()
+    X = unfold(input_feats, kernel_size=kernel_size, padding=padding, stride=stride)    # Unfold input_feat into [(C_i * kernel_size * kernel_size) * #Patches]
+    W = weight.view(weight.size(0), - 1).t()                                            # Unfold weight into [C_o * (C_in * kernel_size * kernel_size)]
 
-    Y = torch.matmul(X.transpose(1, 2), W).transpose(1, 2)
+    Y = torch.matmul(X.transpose(1, 2), W).transpose(1, 2)                              # Multipying X.T and W to compute Y
     for out_ch in range(bias.shape[0]):
-      Y[:,out_ch,:] += bias[out_ch]
+      Y[:,out_ch,:] += bias[out_ch]                                                     # Adding bias
 
-    output = fold(Y, output_size=(output_H, output_W), kernel_size=1)
+    output = fold(Y, output_size=(output_H, output_W), kernel_size=1)                   # Fold Y into [C_o * output_height * output_weight]
 
     # save for backward (you need to save the unfolded tensor into ctx)
     ctx.save_for_backward(X, weight, bias)
