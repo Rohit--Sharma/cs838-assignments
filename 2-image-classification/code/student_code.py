@@ -122,17 +122,17 @@ class CustomConv2DFunction(Function):
     # Unfold grad_output
     dY = unfold(grad_output, kernel_size=kernel_size)
     X_T = unfold(input_feats, kernel_size=kernel_size, padding=padding, stride=stride).transpose(1, 2)
-    dW = torch.mul(dY, X_T)
+    dW = torch.matmul(dY, X_T)
     grad_weight = fold(dW, kernel_size=kernel_size)
 
     # gradient w.r.t input
     W_T = unfold(weight, kernel_size=kernel_size).transpose(0, 1)
-    dX = torch.mul(W_T, dY)
-    grad_input = fold(dX, kernel_size=kernel_size, padding=padding, stride=stride)
+    dX = torch.matmul(W_T, dY)
+    grad_input = fold(dX, output_size=(input_height, input_width), kernel_size=kernel_size, padding=padding, stride=stride)
 
     if bias is not None and ctx.needs_input_grad[2]:
       # compute the gradients w.r.t. bias (if any)
-      grad_bias = grad_output.sum((0,2,3))
+      grad_bias = grad_output.sum((0, 2, 3))
 
     return grad_input, grad_weight, grad_bias, None, None
 
