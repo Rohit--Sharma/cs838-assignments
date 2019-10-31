@@ -80,6 +80,7 @@ parser.add_argument('--gpu', default=0, type=int,
 # tensorboard writer
 writer = SummaryWriter('../logs')
 
+
 # main function for training and testing
 def main(args):
   # parse args
@@ -400,6 +401,7 @@ def validate(val_loader, model, epoch, args, attacker=None, visualizer=None):
       {"val" : top5.avg}, epoch + 1)
 
   return top1.avg
+
 
 def accuracy(output, target, topk=(1,)):
   """Computes the accuracy over the k top predictions"""
