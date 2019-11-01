@@ -285,6 +285,7 @@ class PGDAttack(object):
     """
     # clone the input tensor and disable the gradients
     # TODO: Why do we need 2 copies and disable grads?
+    # TODO: Only allow perturbations with small l-infinity norm. (currently, there are no restrictions)
     output = input.clone()
     input.requires_grad = False
     output.requires_grad = True
@@ -302,9 +303,9 @@ class PGDAttack(object):
 
       loss.backward()
 
-      output_grad = output.grad.data
-      output = torch.clamp(output + self.epsilon * output_grad.sign(), 0, 1)
+      output_grad = output.grad
 
+    output = torch.clamp(output + self.epsilon * output_grad.sign(), 0, 1)
     return output
 
 default_attack = PGDAttack
