@@ -332,6 +332,21 @@ class GradAttention(object):
     # Fill in the code here
     #################################################################################
 
+    # Forward propagate to get the actual prediction
+    pred = model(input)
+
+    # Here, we want to minimize loss of the most confident prediction. 
+    #  Computing actual target with highest prediction and computing its loss
+    _, most_conf_pred = torch.max(pred, 1)
+    loss = self.loss_fn(pred, most_conf_pred)
+
+    # Backward propagate to compute gradients wrt all requires_grad=True variables (here, also input)
+    loss.backward()
+    output = input.grad
+
+    # Take the max value of abs(gradient) across each channel to get the saliency map
+    output, _ = torch.max(torch.abs(output), 1, keepdim=True)
+
     return output
 
 default_attention = GradAttention
