@@ -169,7 +169,7 @@ def main(args):
 
   # testing only
   if (args.evaluate==args.attack) and args.evaluate:
-    print("Cann't set evaluate and attack to True at the same time!")
+    print("Can't set evaluate and attack to True at the same time!")
     return
 
   # set up visualizer

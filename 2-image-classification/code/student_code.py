@@ -284,14 +284,26 @@ class PGDAttack(object):
       output: (torch tensor) an adversarial sample of the given network
     """
     # clone the input tensor and disable the gradients
+    # TODO: Why do we need 2 copies and disable grads?
     output = input.clone()
     input.requires_grad = False
+    output.requires_grad = True
+
+    # Set model in eval mode. This takes care of dropout layers for ex.
+    model.eval()
 
     # loop over the number of steps
-    # for _ in range(self.num_steps):
-      #################################################################################
-      # Fill in the code here
-      #################################################################################
+    for _ in range(self.num_steps):
+      pred = model(output)
+      _, least_conf_pred = torch.min(pred, 1)
+      loss = self.loss_fn(pred, least_conf_pred)
+
+      model.zero_grad()
+
+      loss.backward()
+
+      output_grad = output.grad.data
+      output = torch.clamp(output + self.epsilon * output_grad.sign(), 0, 1)
 
     return output
 
