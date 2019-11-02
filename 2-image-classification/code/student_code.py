@@ -12,7 +12,6 @@ from torchvision.utils import make_grid
 import math
 from utils import resize_image
 import custom_transforms as transforms
-#from torch.nn import ConstantPad2d
 
 #################################################################################
 # You will need to fill in the missing code in this file
@@ -178,6 +177,85 @@ class CustomConv2d(Module):
 #################################################################################
 # Part II: Design and train a network
 #################################################################################
+class BlockConv2d(nn.Module):
+  def __init__(self, in_channels, out_channels, conv_op=nn.Conv2d, **kwargs):
+    super(BlockConv2d, self).__init__()
+    self.eps = 0.001
+    self.block = nn.Sequential(
+      conv_op(in_channels, out_channels, **kwargs),
+      nn.BatchNorm2d(out_channels, self.eps),
+      nn.ReLU(inplace=True))
+  def forward(self, x):
+    x = self.block(x)
+    return x
+
+class BlockA(nn.Module):
+  def __init__(self, in_channels, pool_features):
+    super(BlockA, self).__init__()
+    self.branchA = BlockConv2d(in_channels, 64, kernel_size=1)
+    
+    self.branchB_1 = BlockConv2d(in_channels, 48, kernel_size=1)
+    self.branchB_2 = BlockConv2d(48, 64, kernel_size=5, padding=2)
+
+    self.branchC_1 = BlockConv2d(in_channels, 64, kernel_size=1)
+    self.branchC_2 = BlockConv2d(64, 96, kernel_size=3, padding=1)
+    self.branchC_3 = BlockConv2d(96, 96, kernel_size=3, padding=1)
+
+    self.branch_pool = BlockConv2d(in_channels, pool_features, kernel_size=1)
+    self.avg_pool = nn.AvgPool2d(kernel_size=3, stride=1, padding=1)
+
+  def forward(self, x):
+    branchA = self.branchA(x)
+    branchB_1 = self.branchB_1(x)
+    branchB_2 = self.branchB_2(branchB_1)
+    branchC_1 = self.branchC_1(x)
+    branchC_2 = self.branchC_2(branchC_1)
+    branchC_3 = self.branchC_3(branchC_2)
+    branch_pool = self.avg_pool(x)
+    branch_pool = self.branch_pool(branch_pool)
+
+    return torch.cat([branchA, branchB_2, branchC_3], 1)
+
+class OurBestNet(nn.Module):
+  def __init__(self, conv_op=nn.Conv2d, num_classes=100):
+    super(OurBestNet, self).__init__()
+    # TODO:Add batchnorm
+    self.block_conv = BlockConv2d(3, 64, kernel_size=7, stride=2, padding=3)
+    self.blockA_1 = BlockA(64, pool_features=16)
+    self.blockA_2 = BlockA(224, pool_features=64)
+    self.max_pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+    # global avg pooling + FC
+    self.avgpool =  nn.AdaptiveAvgPool2d((1, 1))
+    self.fc = nn.Linear(224, num_classes)
+
+  def reset_parameters(self):
+    # init all params
+    for m in self.modules():
+      if isinstance(m, nn.Conv2d):
+        nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+        if m.bias is not None:
+          nn.init.consintat_(m.bias, 0.0)
+      elif isinstance(m, nn.BatchNorm2d):
+        nn.init.constant_(m.weight, 1.0)
+        nn.init.constant_(m.bias, 0.0)  
+
+  def forward(self, x):
+    print(x.shape)
+    x = self.block_conv(x)
+    print("block_conv : " , x.shape)
+    x = self.max_pool(x)
+    print("max_pool : " , x.shape)
+    x = self.blockA_1(x)
+    print("blockA_1: " , x.shape)
+    x = self.blockA_2(x)
+    print("blockA_2: " , x.shape)
+    x = self.avgpool(x)
+    print("avgpool : " , x.shape)
+    x = x.view(x.size(0), -1)
+    x = self.fc(x)
+    print("fc : ", x.shape)   
+    return x
+
 class SimpleNet(nn.Module):
   # a simple CNN for image classifcation
   def __init__(self, conv_op=nn.Conv2d, num_classes=100):
@@ -232,7 +310,7 @@ class SimpleNet(nn.Module):
     return x
 
 # change this to your model!
-default_model = SimpleNet
+default_model = OurBestNet
 
 # define data augmentation used for training, you can tweak things if you want
 def get_train_transforms(normalize):
