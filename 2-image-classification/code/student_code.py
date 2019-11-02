@@ -206,27 +206,34 @@ class BlockA(nn.Module):
 
   def forward(self, x):
     branchA = self.branchA(x)
+
     branchB_1 = self.branchB_1(x)
     branchB_2 = self.branchB_2(branchB_1)
+    
     branchC_1 = self.branchC_1(x)
     branchC_2 = self.branchC_2(branchC_1)
     branchC_3 = self.branchC_3(branchC_2)
+    
     branch_pool = self.avg_pool(x)
     branch_pool = self.branch_pool(branch_pool)
 
-    return torch.cat([branchA, branchB_2, branchC_3], 1)
+    return torch.cat([branchA, branchB_2, branchC_3, branch_pool], 1)
 
 class OurBestNet(nn.Module):
   def __init__(self, conv_op=nn.Conv2d, num_classes=100):
     super(OurBestNet, self).__init__()
     # TODO:Add batchnorm
-    self.block_conv = BlockConv2d(3, 64, kernel_size=7, stride=2, padding=3)
-    self.blockA_1 = BlockA(64, pool_features=16)
-    self.blockA_2 = BlockA(224, pool_features=64)
+    self.block_conv = BlockConv2d(3, 32, kernel_size=3, stride=2)
+    self.block_conv_2 = BlockConv2d(32, 64, kernel_size=3, padding=1)
+    self.block_conv_3 = BlockConv2d(64, 120, kernel_size=3)
+    self.blockA_1 = BlockA(120, pool_features=32)
+    self.blockA_2 = BlockA(256, pool_features=64)
+    self.blockA_3 = BlockA(288, pool_features=64)
+    self.blockA_4 = BlockA(288, pool_features=64)
     self.max_pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
     # global avg pooling + FC
     self.avgpool =  nn.AdaptiveAvgPool2d((1, 1))
-    self.fc = nn.Linear(224, num_classes)
+    self.fc = nn.Linear(288, num_classes)
 
   def reset_parameters(self):
     # init all params
@@ -240,20 +247,28 @@ class OurBestNet(nn.Module):
         nn.init.constant_(m.bias, 0.0)  
 
   def forward(self, x):
-    print(x.shape)
+    #print(x.shape)
     x = self.block_conv(x)
-    print("block_conv : " , x.shape)
+    #print("block_conv : " , x.shape)
+    x = self.block_conv_2(x)
+    #print("block_conv 2 : " , x.shape)
+    x = self.block_conv_3(x)
+    #print("block_conv 3 : " , x.shape)
     x = self.max_pool(x)
-    print("max_pool : " , x.shape)
+    #print("max_pool : " , x.shape)
     x = self.blockA_1(x)
-    print("blockA_1: " , x.shape)
+    #print("blockA_1: " , x.shape)
     x = self.blockA_2(x)
-    print("blockA_2: " , x.shape)
+    #print("blockA_2: " , x.shape)
+    x = self.blockA_3(x)
+    #print("blockA_3: " , x.shape)
+    x = self.blockA_4(x)
+    #print("blockA_4: " , x.shape)
     x = self.avgpool(x)
-    print("avgpool : " , x.shape)
+    #print("avgpool : " , x.shape)
     x = x.view(x.size(0), -1)
     x = self.fc(x)
-    print("fc : ", x.shape)   
+    #print("fc : ", x.shape)   
     return x
 
 class SimpleNet(nn.Module):
