@@ -377,8 +377,6 @@ class PGDAttack(object):
       output: (torch tensor) an adversarial sample of the given network
     """
     # clone the input tensor and disable the gradients
-    # TODO: Why do we need 2 copies and disable grads?
-    # TODO: Only allow perturbations with small l-infinity norm. (currently, there are no restrictions)
     output = input.clone()
     input.requires_grad = False
     output.requires_grad = True
@@ -393,12 +391,16 @@ class PGDAttack(object):
       loss = self.loss_fn(pred, least_conf_pred)
 
       model.zero_grad()
+      output.zero_grad()
 
       loss.backward()
 
-      output_grad = output.grad
+      output_grad = output.grad.data
+      output_grad_sign = torch.sign(output_grad)
 
-    output = torch.clamp(output + self.epsilon * output_grad.sign(), 0, 1)
+      output.data = output.data + self.step_size * output_grad_sign
+      output.data = torch.clamp(output.data, min=(input - self.epsilon), max=(input + self.epsilon))
+
     return output
 
 default_attack = PGDAttack
