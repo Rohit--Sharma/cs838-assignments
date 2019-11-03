@@ -379,6 +379,7 @@ class PGDAttack(object):
     # clone the input tensor and disable the gradients
     output = input.clone()
     input.requires_grad = False
+    # enable the gradients on the clone to generate adversarial samples
     output.requires_grad = True
 
     # Set model in eval mode. This takes care of dropout layers for ex.
@@ -386,19 +387,25 @@ class PGDAttack(object):
 
     # loop over the number of steps
     for _ in range(self.num_steps):
+      # Forward propagate the input and find the prediction class with least probability
       pred = model(output)
       _, least_conf_pred = torch.min(pred, 1)
+      # Using the least confident label as proxy for wrong label to generate adversarial
+      #  samples, compute the loss
       loss = self.loss_fn(pred, least_conf_pred)
 
+      # Backward propagate to compute gradients w.r.t the input image
       model.zero_grad()
       output.zero_grad()
-
       loss.backward()
 
+      # Get the direction of the gradient w.r.t input to perturb the image
       output_grad = output.grad.data
       output_grad_sign = torch.sign(output_grad)
 
+      # Fast Gradient sign step to perturb the input
       output.data = output.data + self.step_size * output_grad_sign
+      # Clamp the input to epsilon boundary
       output.data = torch.clamp(output.data, min=(input - self.epsilon), max=(input + self.epsilon))
 
     return output
