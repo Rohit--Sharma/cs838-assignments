@@ -304,7 +304,7 @@ class SimpleNet(nn.Module):
     self.fc = nn.Linear(512, num_classes)
 
     # Initialise PGD for adversarial training.
-    self.attacker = default_attack(nn.CrossEntropyLoss())
+    self.attacker = default_attack(nn.CrossEntropyLoss(), num_steps=5)
 
   def reset_parameters(self):
     # init all params
@@ -408,7 +408,7 @@ class PGDAttack(object):
       # Fast Gradient sign step to perturb the input
       output.data = output.data + self.step_size * output_grad_sign
       # Clamp the input to epsilon boundary
-      output.data = torch.clamp(output.data, min=(input - self.epsilon), max=(input + self.epsilon))
+      output.data = torch.max(torch.min(output.data, input + self.epsilon), input - self.epsilon)
       output.grad.zero_()
 
     return output
