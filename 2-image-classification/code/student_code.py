@@ -303,6 +303,9 @@ class SimpleNet(nn.Module):
     self.avgpool =  nn.AdaptiveAvgPool2d((1, 1))
     self.fc = nn.Linear(512, num_classes)
 
+    # Initialise PGD for adversarial training.
+    self.attacker = default_attack(nn.CrossEntropyLoss())
+
   def reset_parameters(self):
     # init all params
     for m in self.modules():
@@ -315,9 +318,9 @@ class SimpleNet(nn.Module):
         nn.init.constant_(m.bias, 0.0)
 
   def forward(self, x):
-    # you can implement adversarial training here
-    # if self.training:
-    #   # generate adversarial sample based on x
+    if self.training:
+      #   # generate adversarial sample based on x
+      x = self.attacker.perturb(self, x)
     x = self.features(x)
     x = self.avgpool(x)
     x = x.view(x.size(0), -1)
@@ -396,7 +399,6 @@ class PGDAttack(object):
 
       # Backward propagate to compute gradients w.r.t the input image
       model.zero_grad()
-      output.zero_grad()
       loss.backward()
 
       # Get the direction of the gradient w.r.t input to perturb the image
@@ -407,6 +409,7 @@ class PGDAttack(object):
       output.data = output.data + self.step_size * output_grad_sign
       # Clamp the input to epsilon boundary
       output.data = torch.clamp(output.data, min=(input - self.epsilon), max=(input + self.epsilon))
+      output.grad.zero_()
 
     return output
 
