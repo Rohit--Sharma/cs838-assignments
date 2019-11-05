@@ -100,10 +100,6 @@ class CustomConv2DFunction(Function):
 
     grad_input = grad_weight = grad_bias = None
 
-    #################################################################################
-    # Fill in the code here
-    #################################################################################
-
     # gradient w.r.t params
     dY = unfold(grad_output, kernel_size=1)     # Unfold grad_output
     X_T = X_unfolded.transpose(1, 2)            # Transpose x_unfolded
@@ -319,7 +315,7 @@ class SimpleNet(nn.Module):
 
   def forward(self, x):
     if self.training:
-      #   # generate adversarial sample based on x
+      # generate adversarial sample based on x
       x = self.attacker.perturb(self, x)
     x = self.features(x)
     x = self.avgpool(x)
@@ -445,10 +441,6 @@ class GradAttention(object):
     input.requires_grad = True
     if input.grad is not None:
       input.grad.zero_()
-
-    #################################################################################
-    # Fill in the code here
-    #################################################################################
 
     # Forward propagate to get the actual prediction
     pred = model(input)
