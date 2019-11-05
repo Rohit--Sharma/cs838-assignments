@@ -324,7 +324,8 @@ class SimpleNet(nn.Module):
     return x
 
 # change this to your model!
-default_model = OurBestNet
+default_model = SimpleNet
+#default_model = OurBestNet # Use this to train using OurBestNet 
 
 # define data augmentation used for training, you can tweak things if you want
 def get_train_transforms(normalize):
