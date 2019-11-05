@@ -324,6 +324,7 @@ class SimpleNet(nn.Module):
     return x
 
 # change this to your model!
+# default_model = SimpleNet
 default_model = OurBestNet
 
 # define data augmentation used for training, you can tweak things if you want
