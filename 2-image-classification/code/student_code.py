@@ -315,8 +315,10 @@ class SimpleNet(nn.Module):
 
   def forward(self, x):
     if self.training:
+      self.eval()
       # generate adversarial sample based on x
       x = self.attacker.perturb(self, x)
+      self.train()
     x = self.features(x)
     x = self.avgpool(x)
     x = x.view(x.size(0), -1)
@@ -324,8 +326,8 @@ class SimpleNet(nn.Module):
     return x
 
 # change this to your model!
-# default_model = SimpleNet
-default_model = OurBestNet  # Use this to train using OurBestNet 
+default_model = SimpleNet
+# default_model = OurBestNet  # Use this to train using OurBestNet 
 
 # define data augmentation used for training, you can tweak things if you want
 def get_train_transforms(normalize):
